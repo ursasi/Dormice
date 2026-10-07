@@ -227,9 +227,24 @@ export const killProcess = (
 // ---- 签名直链(daemon 根 /files,给第三方抓取用)---------------------------
 
 /**
+ * 逐字节拼成二进制字符串给 btoa:等价于 String.fromCharCode(...bytes),
+ * 但不把整个数组摊进实参 — 那个写法有参数个数上限,换个地方复用(比如
+ * 更长的 buffer)就会爆栈,这里没有理由留这个坑。
+ */
+function bytesToBinary(bytes: Uint8Array): string {
+  let out = '';
+  for (const byte of bytes) out += String.fromCharCode(byte);
+  return out;
+}
+
+/**
  * 15 分钟:Microsoft 查看器加载时抓取、大文档翻页可能补抓,太短会断
  * 查看器的懒加载;再长只是白白加宽泄露窗 — 每次点击/刷新都重铸,
  * 过期是一次点击的事。
+ *
+ * 代价要说明白:这条 URL 是一张 15 分钟内不可撤销的凭证 — 销毁沙箱或
+ * 轮换 API token 都不会让它失效,只有时钟会。所以它只适合"给第三方
+ * 抓一次文件"这种一次性场景,不该往外扩散。
  */
 export const SIGNED_URL_TTL_SECONDS = 15 * 60;
 
@@ -245,6 +260,12 @@ export const SIGNED_URL_TTL_SECONDS = 15 * 60;
  * `username=` 是 401,带 `username=user` 则材料对不上,两头只能"缺席"
  * (e2e/console.test 反向钉着这一条)。
  *
+ * 这个格式不是本仓库挑的,是 E2B 的线上格式:官方 SDK 的 getSignature
+ * (packages/js-sdk/src/sandbox/signature.ts)算的就是
+ * sha256("path:operation:user:envdAccessToken[:exp]"),真 envd 的验证
+ * 也认它 —— 所以这里不能"顺手换成 HMAC":SDK 铸出来的 URL 会当场失效。
+ * 两端的钉法见 server/e2b/signing.ts 顶注与 e2e/console.test。
+ *
  * crypto.subtle 只在安全上下文存在(明文 HTTP 的 IP 访问没有)—
  * 调用方先闸 window.isSecureContext。
  */
@@ -258,10 +279,7 @@ export async function signedDownloadUrl(
     'SHA-256',
     new TextEncoder().encode(material),
   );
-  const b64 = btoa(String.fromCharCode(...new Uint8Array(digest))).replace(
-    /=+$/,
-    '',
-  );
+  const b64 = btoa(bytesToBinary(new Uint8Array(digest))).replace(/=+$/, '');
   const query = new URLSearchParams({
     path,
     signature: `v1_${b64}`,
