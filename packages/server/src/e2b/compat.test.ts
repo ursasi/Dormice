@@ -246,6 +246,25 @@ describe('E2B control plane', () => {
     expect(bare.statusCode).toBe(201);
   });
 
+  it('refuses volumeMounts instead of silently dropping the mount', async () => {
+    const t = testApp();
+    const res = await control(t, 'POST', '/sandboxes', {
+      volumeMounts: { '/mnt/data': 'definitely-missing-volume' },
+    });
+    expect(res.statusCode).toBe(501);
+    expect(res.json().code).toBe(501);
+    expect(res.json().message).toContain('volumeMounts');
+    // Nothing was created on the way to the refusal.
+    expect(await t.executor.listDisks()).toEqual([]);
+    expect((await control(t, 'GET', '/v2/sandboxes')).json()).toEqual([]);
+  });
+
+  it('an empty volumeMounts object is not a mount: create proceeds', async () => {
+    const t = testApp();
+    const created = await control(t, 'POST', '/sandboxes', { volumeMounts: {} });
+    expect(created.statusCode).toBe(201);
+  });
+
   it('creates a fresh sandbox per call — E2B semantics, no key given', async () => {
     const t = testApp();
     const first = await createSandbox(t);
