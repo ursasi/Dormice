@@ -2179,8 +2179,7 @@ describe('signed file URLs at the daemon root', () => {
       expect(res.json().message).toBe('invalid signature');
     }
 
-    // The canonical order still opens the door: what is pinned is the
-    // order, not an extra check bolted beside it.
+    // The canonical signature reaches file lookup; x does not exist.
     const good = sdkSignature({
       path: 'x',
       operation: 'read',
@@ -2191,7 +2190,8 @@ describe('signed file URLs at the daemon root', () => {
       method: 'GET',
       url: `/files?path=x&signature=${encodeURIComponent(good)}&signature_expiration=${exp}`,
     });
-    expect(accepted.statusCode).not.toBe(401);
+    expect(accepted.statusCode).toBe(404);
+    expect(accepted.json().code).toBe('not_found');
   });
 
   it("refuses in real envd's order and words", async () => {

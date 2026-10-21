@@ -227,9 +227,9 @@ export const killProcess = (
 // ---- 签名直链(daemon 根 /files,给第三方抓取用)---------------------------
 
 /**
- * 逐字节拼成二进制字符串给 btoa:等价于 String.fromCharCode(...bytes),
- * 但不把整个数组摊进实参 — 那个写法有参数个数上限,换个地方复用(比如
- * 更长的 buffer)就会爆栈,这里没有理由留这个坑。
+ * 逐字节拼成二进制字符串给 btoa:等价于 String.fromCharCode(...bytes)。
+ * SHA-256 摘要固定 32 字节,原来的展开在这里不会溢出。循环只是防御性
+ * 处理,避免将来复用于更大 buffer 时受实参数量上限影响。
  */
 function bytesToBinary(bytes: Uint8Array): string {
   let out = '';
@@ -242,9 +242,9 @@ function bytesToBinary(bytes: Uint8Array): string {
  * 查看器的懒加载;再长只是白白加宽泄露窗 — 每次点击/刷新都重铸,
  * 过期是一次点击的事。
  *
- * 代价要说明白:这条 URL 是一张 15 分钟内不可撤销的凭证 — 销毁沙箱或
- * 轮换 API token 都不会让它失效,只有时钟会。所以它只适合"给第三方
- * 抓一次文件"这种一次性场景,不该往外扩散。
+ * URL 持有者可在过期前读取文件,目前没有逐条撤销机制。
+ * 轮换 API token 不影响签名;销毁沙箱会删除记录,后续请求无法再访问。
+ * 因此只把直链交给需要取文件的第三方,避免泄露或长期保存。
  */
 export const SIGNED_URL_TTL_SECONDS = 15 * 60;
 
