@@ -249,19 +249,22 @@ describe('E2B control plane', () => {
   it('refuses volumeMounts instead of silently dropping the mount', async () => {
     const t = testApp();
     const res = await control(t, 'POST', '/sandboxes', {
-      volumeMounts: { '/mnt/data': 'definitely-missing-volume' },
+      volumeMounts: [{ name: 'definitely-missing-volume', path: '/mnt/data' }],
     });
     expect(res.statusCode).toBe(501);
     expect(res.json().code).toBe(501);
     expect(res.json().message).toContain('volumeMounts');
     // Nothing was created on the way to the refusal.
+    expect(await t.executor.listContainers()).toEqual(new Map());
     expect(await t.executor.listDisks()).toEqual([]);
     expect((await control(t, 'GET', '/v2/sandboxes')).json()).toEqual([]);
   });
 
-  it('an empty volumeMounts object is not a mount: create proceeds', async () => {
+  it('an empty volumeMounts array is not a mount: create proceeds', async () => {
     const t = testApp();
-    const created = await control(t, 'POST', '/sandboxes', { volumeMounts: {} });
+    const created = await control(t, 'POST', '/sandboxes', {
+      volumeMounts: [],
+    });
     expect(created.statusCode).toBe(201);
   });
 

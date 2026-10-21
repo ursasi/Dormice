@@ -68,7 +68,10 @@ const createBodySchema = z
     // missing nicety — the caller believes durable storage is attached
     // while writes land on the sandbox disk, which is the silent data
     // loss the compat promise rules out.
-    volumeMounts: z.record(z.string(), z.string()).optional(),
+    // The SDK serializes its mount-path map as an array on the wire.
+    volumeMounts: z
+      .array(z.object({ name: z.string(), path: z.string() }).loose())
+      .optional(),
   })
   .loose();
 
@@ -271,7 +274,7 @@ export const e2bControlRoutes: FastifyPluginAsyncZod<E2bDeps> = async (
       // First, before any side effect: the executor contract has no volume
       // support at all, so a mount here can only be dropped. Say so instead
       // of handing back a sandbox whose durable storage is silently absent.
-      if (body.volumeMounts && Object.keys(body.volumeMounts).length > 0) {
+      if (body.volumeMounts && body.volumeMounts.length > 0) {
         throw apiError(
           501,
           'volumeMounts is not supported yet — an ignored mount would silently drop durable storage (see #85)',
